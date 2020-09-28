@@ -9,7 +9,7 @@ import dateparser
 import pytz
 from discord.ext import commands
 
-from utils import BotTimer
+from . import utils
 
 MAX_DURATION = 7776000
 # load environment variables from .env file
@@ -21,7 +21,7 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='.')
 
 # dictionary mapping event names to their timers
-timers: Dict[str, BotTimer] = {}
+timers: Dict[str, utils.BotTimer] = {}
 
 
 @bot.event
@@ -72,16 +72,19 @@ async def schedule(ctx: commands.Context, event_name: str,  start_time: str, *pa
         return
 
     # create timer that starts the event when finished
-    timers[event_name] = BotTimer(timer_duration, callback=start_event, args=[ctx.channel.id, event_name, participants])
+    timers[event_name] = utils.BotTimer(timer_duration, callback=start_event, args=[ctx.channel.id, event_name, participants])
 
     await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%-m/%-d/%Y at %-I:%M %p EST")}')
 
 
 @bot.command(name='cancel')
-async def cancel(ctx: commands.Context, event_name: str):
+async def cancel(ctx: commands.Context, event_name: str = None):
     """
     Cancel an event with the given event_name
     """
+    if not event_name:
+        await ctx.send("Please provide an event name")
+        return
     if event_name not in timers:
         await ctx.send(f'There is no event scheduled with the name "{event_name}", please try again.')
         return
