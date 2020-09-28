@@ -116,7 +116,7 @@ async def remaining(ctx: commands.Context, event_name: str):
                    + f'{int(minutes)} minutes, and {int(seconds)} seconds')
 
 
-async def start_event(channel_id: int, event_name: str, *participants: discord.User):
+async def start_event(channel_id: int, event_name: str, *participants):
     channel = await bot.fetch_channel(channel_id)
     participants = participants[0]
     await channel.send(f'{" ".join(x.mention for x in participants)}, {event_name} is starting now!!')

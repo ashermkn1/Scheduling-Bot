@@ -7,7 +7,6 @@ class BotTimer:
         if kwargs is None:
             kwargs = {}
         self._args = args
-        print(args)
         self._kwargs = kwargs
         self._timeout = timeout
         self._start_time = datetime.utcnow()
