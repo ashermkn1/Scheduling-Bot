@@ -1,27 +1,26 @@
 import os
-from datetime import datetime, timedelta, timezone
-from threading import Timer
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict
 
-import dotenv
-import discord
 import dateparser
+import discord
+import dotenv
 import pytz
 from discord.ext import commands
 
-from . import utils
+from .utils import BotTimer
+
 
 MAX_DURATION = 7776000
 # load environment variables from .env file
 dotenv.load_dotenv('.env')
-
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 # initialize discord bot
 bot = commands.Bot(command_prefix='.')
 
 # dictionary mapping event names to their timers
-timers: Dict[str, utils.BotTimer] = {}
+timers: Dict[str, BotTimer] = {}
 
 
 @bot.event
@@ -31,7 +30,7 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
 
-@bot.command(name='schedule')
+@bot.command()
 async def schedule(ctx: commands.Context, event_name: str,  start_time: str, *participants: discord.User):
     """
     Add event to queue, mentioning the participants once the given date and time is reached
@@ -72,12 +71,12 @@ async def schedule(ctx: commands.Context, event_name: str,  start_time: str, *pa
         return
 
     # create timer that starts the event when finished
-    timers[event_name] = utils.BotTimer(timer_duration, callback=start_event, args=[ctx.channel.id, event_name, participants])
+    timers[event_name] = BotTimer(timer_duration, callback=start_event, args=[ctx.channel.id, event_name, participants])
 
     await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%-m/%-d/%Y at %-I:%M %p EST")}')
 
 
-@bot.command(name='cancel')
+@bot.command()
 async def cancel(ctx: commands.Context, event_name: str = None):
     """
     Cancel an event with the given event_name
@@ -94,7 +93,7 @@ async def cancel(ctx: commands.Context, event_name: str = None):
     await ctx.send(f'{event_name} was canceled')
 
 
-@bot.command(name='remaining')
+@bot.command()
 async def remaining(ctx: commands.Context, event_name: str):
     """
     Gets the time remaining until event with given event_name

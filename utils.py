@@ -3,6 +3,9 @@ import asyncio
 
 
 class BotTimer:
+    """
+    Simple asynchronous timer to facilitate scheduling events
+    """
     def __init__(self, timeout, callback, args=None, kwargs=None):
         if kwargs is None:
             kwargs = {}
