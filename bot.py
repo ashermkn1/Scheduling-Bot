@@ -8,8 +8,7 @@ import dotenv
 import pytz
 from discord.ext import commands
 
-from .utils import BotTimer
-
+from utils import BotTimer
 
 MAX_DURATION = 7776000
 # load environment variables from .env file
@@ -31,7 +30,7 @@ async def on_ready():
 
 
 @bot.command()
-async def schedule(ctx: commands.Context, event_name: str,  start_time: str, *participants: discord.User):
+async def schedule(ctx: commands.Context, event_name: str, start_time: str, *participants: discord.User):
     """
     Add event to queue, mentioning the participants once the given date and time is reached
     Note: participants is passed in as an argument list so mention the users who will participate at the end
@@ -73,7 +72,7 @@ async def schedule(ctx: commands.Context, event_name: str,  start_time: str, *pa
     # create timer that starts the event when finished
     timers[event_name] = BotTimer(timer_duration, callback=start_event, args=[ctx.channel.id, event_name, participants])
 
-    await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%-m/%-d/%Y at %-I:%M %p EST")}')
+    await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%m/%d/%Y at %I:%M%p EST")}')
 
 
 @bot.command()
@@ -113,6 +112,19 @@ async def remaining(ctx: commands.Context, event_name: str):
 
     await ctx.send(f'{event_name} will happen in {int(days)} days, {int(hours)} hours, '
                    + f'{int(minutes)} minutes, and {int(seconds)} seconds')
+
+
+@bot.command(name="listall")
+async def list_all(ctx: commands.Context):
+    """
+    lists all of the events currently schedules, showing their name and time remaining
+    """
+    if not timers:
+        await ctx.send("There are no events currently scheduled")
+        return
+
+    for name in timers:
+        await ctx.invoke(bot.get_command(name="remaining"), event_name=name)
 
 
 async def start_event(channel_id: int, event_name: str, *participants):
