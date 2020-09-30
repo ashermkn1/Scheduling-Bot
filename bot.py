@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 
 import dateparser
 import discord
@@ -42,15 +42,32 @@ async def schedule(ctx: commands.Context, event_name: str, start_time: str, *par
         await ctx.send(f'There is already an event scheduled with the name "{event_name}". '
                        + 'please use another name or cancel the other timer with '
                        + '.cancel event_name and then add this one again')
+        return
 
+    local_time = await parse_datetime(ctx, start_time)
+
+    if not local_time:
+        return
+
+    utc_time = local_time.astimezone(pytz.utc)
+
+    timer_duration = (utc_time - pytz.utc.localize(datetime.utcnow())).total_seconds()
+    # create timer that starts the event when finished
+    timers[event_name] = BotTimer(timer_duration, callback=start_event,
+                                  args=[ctx.channel.id, event_name, *participants])
+
+    await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%m/%d/%Y at %I:%M%p EST")}')
+
+
+async def parse_datetime(ctx: commands.Context, timestamp: str) -> Optional[datetime]:
     eastern = pytz.timezone('US/Eastern')
 
-    parsed_datetime = dateparser.parse(start_time, settings={'DATE_ORDER': 'MDY'})
+    parsed_datetime = dateparser.parse(timestamp, settings={'DATE_ORDER': 'MDY'})
 
     # parse returns None if it failed to parse the date
     if not parsed_datetime:
-        await ctx.send(f"Invalid datetime: {start_time}. Try again idiot")
-        return
+        await ctx.send(f"Invalid datetime: {timestamp}")
+        return None
 
     # get timer duration using localized time
     local_time = parsed_datetime.astimezone(eastern)
@@ -62,17 +79,42 @@ async def schedule(ctx: commands.Context, event_name: str, start_time: str, *par
     # make sure time is in the future
     if timer_duration <= 0:
         await ctx.send("Please input a time in the future, ~~idiot~~")
-        return
+        return None
 
     # make sure time isnt 2 months in the future
     if timer_duration > MAX_DURATION:
         await ctx.send("Wow! That is a long ways away. Please schedule the event for closer in the future")
+        return None
+
+    return local_time
+
+
+@bot.command()
+async def reschedule(ctx: commands.Context, event_name: str, new_time: str):
+    """
+    Reschedule an event with the given name to given time
+    """
+    if event_name not in timers:
+        await ctx.send(f'There is no event scheduled with the name "{event_name}", please try again.')
         return
 
-    # create timer that starts the event when finished
-    timers[event_name] = BotTimer(timer_duration, callback=start_event, args=[ctx.channel.id, event_name, participants])
+    old_timer: BotTimer = timers[event_name]
+    args = old_timer.args
+    print(args)
+    local_time = await parse_datetime(ctx, new_time)
 
-    await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%m/%d/%Y at %I:%M%p EST")}')
+    if not local_time:
+        return
+
+    utc_time = local_time.astimezone(pytz.utc)
+
+    timer_duration = (utc_time - pytz.utc.localize(datetime.utcnow())).total_seconds()
+
+    timers[event_name].cancel()
+
+    timers[event_name] = BotTimer(timer_duration, callback=start_event, args=args)
+
+    await ctx.send(f'{event_name} has been rescheduled to {local_time.strftime("%m/%d/%Y at %I:%M%p EST")}')
 
 
 @bot.command()
@@ -129,8 +171,8 @@ async def list_all(ctx: commands.Context):
 
 async def start_event(channel_id: int, event_name: str, *participants):
     channel = await bot.fetch_channel(channel_id)
-    participants = participants[0]
     await channel.send(f'{" ".join(x.mention for x in participants)}, {event_name} is starting now!!')
+    del timers[event_name]
 
 
 bot.run(TOKEN)

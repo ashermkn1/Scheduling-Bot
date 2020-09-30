@@ -9,7 +9,9 @@ class BotTimer:
     def __init__(self, timeout, callback, args=None, kwargs=None):
         if kwargs is None:
             kwargs = {}
-        self._args = args
+        self.args = args
+        print(args)
+        print(self.args)
         self._kwargs = kwargs
         self._timeout = timeout
         self._start_time = datetime.utcnow()
@@ -26,7 +28,7 @@ class BotTimer:
 
     async def _job(self):
         await asyncio.sleep(self._timeout)
-        await self._callback(*self._args, **self._kwargs)
+        await self._callback(*self.args, **self._kwargs)
 
     def cancel(self):
         self._task.cancel()
