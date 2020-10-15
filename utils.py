@@ -6,9 +6,10 @@ class BotTimer:
     """
     Simple asynchronous timer to facilitate scheduling events
     """
-    def __init__(self, timeout, callback, args=None, kwargs=None):
+    def __init__(self, timeout, callback, capacity: int=0, args=None, kwargs=None):
         if kwargs is None:
             kwargs = {}
+        self.capacity = capacity
         self.args = args
         print(args)
         print(self.args)

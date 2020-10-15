@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import dateparser
 import discord
@@ -30,6 +30,72 @@ async def on_ready():
 
 
 @bot.command()
+async def party(ctx: commands.Context, event_name: str, start_time: str, capacity: int):
+    """
+    Add joinable event, similar to schedule but users can join and leave at will up to a specified capacity
+    """
+    if event_name in timers:
+        await ctx.send(f'There is already an event scheduled with the name "{event_name}". '
+                       + 'please use another name or cancel the other timer with '
+                       + '.cancel event_name and then add this one again')
+        return
+
+    local_time, timer_duration = await parse_datetime(ctx, start_time) or (None, None)
+
+    if not local_time or not timer_duration:
+        return
+
+    timers[event_name] = BotTimer(timer_duration, callback=start_event, capacity=capacity,
+                                  args=[ctx.channel.id, event_name, ctx.author])
+
+    await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%m/%d/%Y at %I:%M%p EST")}')
+    await ctx.send(f'Use .join {event_name} to join this event! There are {spots_left(event_name)} spots left.')
+
+
+@bot.command()
+async def join(ctx: commands.Context, event_name: str):
+    """
+    Joins a party created with the .party command
+    """
+    if event_name not in timers:
+        await ctx.send(f'There is no event scheduled with the name "{event_name}", please try again.')
+        return
+
+    if spots_left(event_name) == 0:
+        await ctx.send('Damn. No more spots left in this party. Maybe next time!')
+        return
+
+    timers[event_name].args.append(ctx.author)
+
+    await ctx.send(f'{ctx.author.mention} has joined {event_name}! There are {spots_left(event_name)} spots left!')
+
+
+@bot.command()
+async def leave(ctx: commands.Context, event_name: str):
+    """
+    Leaves a party created with the .party command
+    """
+
+    if event_name not in timers:
+        await ctx.send(f'There is no event scheduled with the name "{event_name}", please try again.')
+        return
+
+    if ctx.author not in timers[event_name].args:
+        await ctx.send("You are not in that event dummy, you have to join it before you can leave it")
+        return
+
+    index = timers[event_name].args.index(ctx.author)
+
+    del timers[event_name].args[index]
+
+    await ctx.send(f'You have left {event_name}. There are now {spots_left(event_name)} spots left')
+
+
+def spots_left(event_name: str):
+    return timers[event_name].capacity - len(timers[event_name].args) - 2
+
+
+@bot.command()
 async def schedule(ctx: commands.Context, event_name: str, start_time: str, *participants: discord.User):
     """
     Add event to queue, mentioning the participants once the given date and time is reached
@@ -38,20 +104,18 @@ async def schedule(ctx: commands.Context, event_name: str, start_time: str, *par
     if not participants:
         await ctx.send("Please have at least one participant")
         return
+
     if event_name in timers:
         await ctx.send(f'There is already an event scheduled with the name "{event_name}". '
                        + 'please use another name or cancel the other timer with '
                        + '.cancel event_name and then add this one again')
         return
 
-    local_time = await parse_datetime(ctx, start_time)
+    local_time, timer_duration = await parse_datetime(ctx, start_time) or (None, None)
 
-    if not local_time:
+    if not local_time or not timer_duration:
         return
 
-    utc_time = local_time.astimezone(pytz.utc)
-
-    timer_duration = (utc_time - pytz.utc.localize(datetime.utcnow())).total_seconds()
     # create timer that starts the event when finished
     timers[event_name] = BotTimer(timer_duration, callback=start_event,
                                   args=[ctx.channel.id, event_name, *participants])
@@ -59,7 +123,7 @@ async def schedule(ctx: commands.Context, event_name: str, start_time: str, *par
     await ctx.send(f'{event_name} has been scheduled for {local_time.strftime("%m/%d/%Y at %I:%M%p EST")}')
 
 
-async def parse_datetime(ctx: commands.Context, timestamp: str) -> Optional[datetime]:
+async def parse_datetime(ctx: commands.Context, timestamp: str) -> Optional[Tuple[datetime, int]]:
     eastern = pytz.timezone('US/Eastern')
 
     parsed_datetime = dateparser.parse(timestamp, settings={'DATE_ORDER': 'MDY'})
@@ -86,7 +150,7 @@ async def parse_datetime(ctx: commands.Context, timestamp: str) -> Optional[date
         await ctx.send("Wow! That is a long ways away. Please schedule the event for closer in the future")
         return None
 
-    return local_time
+    return local_time, timer_duration
 
 
 @bot.command()
